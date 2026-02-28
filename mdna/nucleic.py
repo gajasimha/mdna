@@ -5,9 +5,9 @@ import warnings
 import mdtraj as md
 from scipy.spatial.transform import Rotation as R
 
-from .utils import Shapes, get_sequence_letters, _check_input
+from .utils import Shapes, get_sequence_letters, _check_input, detect_nucleic_topology
 from .spline import SplineFrames, Twister
-from .geometry import ReferenceBase, NucleicFrames
+from .geometry import ReferenceBase, NucleicFrames, SingleStrandFrames
 from .generators import SequenceGenerator, StructureGenerator
 from .modify import Mutate, Hoogsteen, Methylate
 
@@ -203,6 +203,12 @@ def compute_rigid_parameters(traj, chainids=[0,1], fit_reference=False):
     """
     if traj is None:
         raise ValueError("The traj argument must be provided.")
+    topology = detect_nucleic_topology(traj)
+    if topology['strand_mode'] == 'single':
+        chainid = chainids[0] if len(chainids) > 0 else topology['chainids'][0]
+        return SingleStrandFrames(traj, chainid=chainid, fit_reference=fit_reference)
+    if topology['strand_mode'] != 'double':
+        raise ValueError("Only one or two nucleic-acid chains are supported.")
     return NucleicFrames(traj, chainids, fit_reference=fit_reference)
 
 def compute_curvature(traj, chainids=[0,1]):
@@ -404,10 +410,22 @@ class Nucleic:
                 rigid (None): A container for rigid base parameters class output.
                 minimizer (None): A container for minimizer class output.
             """
+            strand_mode = 'double'
+
             # Check for trajectory
             if traj is not None:
                 if frames is not None:
                     raise ValueError('Provide either a trajectory or reference frames, not both')
+                topology = detect_nucleic_topology(traj)
+                if topology['strand_mode'] == 'none':
+                    raise ValueError('No nucleic-acid chains detected in the trajectory')
+                if topology['strand_mode'] == 'multi':
+                    raise ValueError('Only one or two nucleic-acid chains are supported')
+                strand_mode = topology['strand_mode']
+                if strand_mode == 'single':
+                    chainids = [topology['chainids'][0]]
+                elif any(chainid >= len(traj.top._chains) for chainid in chainids[:2]):
+                    chainids = topology['chainids'][:2]
                 # Extract sequence from the trajectory
                 sequence = get_sequence_letters(traj, leading_chain=chainids[0])
                 n_bp = len(sequence)
@@ -422,6 +440,7 @@ class Nucleic:
                 if frames.ndim != 4:
                     raise ValueError('Frames should be of shape (n_bp, n_timesteps, 4, 3) or (n_bp, 4, 3)')
                 n_bp = frames.shape[0]
+                strand_mode = 'single' if len(chainids) == 1 else 'double'
                 if sequence is not None:
                     if len(sequence) != n_bp:
                         raise ValueError('Number of base pairs in the sequence and frames do not match')  
@@ -434,6 +453,7 @@ class Nucleic:
             self.traj = traj
             self.frames = frames
             self.chainids = chainids
+            self.strand_mode = strand_mode
             self.circular = self._is_circular() if circular is None else circular 
             self.rigid = None # Container for rigid base parameters class output
             self.minimizer = None # Container for minimizer class output
@@ -441,7 +461,11 @@ class Nucleic:
 
     def describe(self):
         """Print the DNA structure information"""
-        print(f'{"Circular " if self.circular else ""}DNA structure with {self.n_bp} base pairs')
+        prefix = "Circular " if self.circular else ""
+        if self.strand_mode == 'single':
+            print(f'{prefix}single-stranded nucleic acid with {self.n_bp} nucleotides')
+        else:
+            print(f'{prefix}double-stranded nucleic acid with {self.n_bp} base pairs')
         print('Sequence:', ''.join(self.sequence))
 
         if self.traj is not None:
@@ -458,6 +482,10 @@ class Nucleic:
         """Convert reference frames to trajectory"""
         if self.frames is None:
             raise ValueError('Load reference frames first')
+        if self.strand_mode == 'single':
+            raise NotImplementedError(
+                'Converting single-strand reference frames back to a trajectory is not implemented yet.'
+            )
         self.traj = None
         generator = StructureGenerator(frames=self.frames[:,frame,:,:], sequence=self.sequence, circular=self.circular)
         self.traj = generator.get_traj(remove_terminal_phosphates=False)
@@ -466,7 +494,15 @@ class Nucleic:
         """Convert trajectory to reference frames"""
         if self.traj is None:
             raise ValueError('Load trajectory first')
-        self.rigid = NucleicFrames(self.traj, self.chainids)
+        topology = detect_nucleic_topology(self.traj)
+        self.strand_mode = topology['strand_mode']
+        if self.strand_mode == 'single':
+            chainid = self.chainids[0] if len(self.chainids) > 0 else topology['chainids'][0]
+            self.rigid = SingleStrandFrames(self.traj, chainid=chainid)
+        elif self.strand_mode == 'double':
+            self.rigid = NucleicFrames(self.traj, self.chainids)
+        else:
+            raise ValueError('Only one or two nucleic-acid chains are supported')
         self.frames =self.rigid.frames
     
     def get_frames(self):
@@ -499,11 +535,11 @@ class Nucleic:
         Returns:
             NucleicFrames (object): Object representing the rigid base parameters of the DNA structure."""
         if self.rigid is None and self.traj is not None:
-            self.rigid = NucleicFrames(self.traj, self.chainids)
+            self.rigid = compute_rigid_parameters(self.traj, self.chainids)
             return self.rigid
         elif self.rigid is None and self.traj is None:
             self._frames_to_traj()
-            self.rigid = NucleicFrames(self.traj, self.chainids)
+            self.rigid = compute_rigid_parameters(self.traj, self.chainids)
             return self.rigid
         else:
             return self.rigid
@@ -1175,6 +1211,5 @@ class Connector:
             print("No optimal number of base pairs found within the specified tolerance.")
         return results
            
-
 
 

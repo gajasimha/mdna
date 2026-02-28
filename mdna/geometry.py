@@ -186,6 +186,152 @@ class ReferenceBase:
 
         ax.axis('equal')
 
+class SingleStrandFrames:
+    """Build per-residue reference frames for a single-stranded nucleic acid."""
+
+    def __init__(self, traj, chainid=0, fit_reference=False):
+        self.traj = traj
+        self.top = traj.topology
+        self.chainid = chainid
+        self.fit_reference = fit_reference
+        self.reference_base_map = {'U': 'T'}
+        self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
+        self.residues = self.get_residues(chain_index=chainid, reverse=False)
+        self.base_frames = self.get_base_reference_frames()
+        self.analyse_frames()
+
+    def get_residues(self, chain_index, reverse=False):
+        """Get residues from a specified chain."""
+        if chain_index >= len(self.top._chains):
+            raise IndexError("Chain index out of range.")
+        chain = self.top._chains[chain_index]
+        residues = chain._residues
+        return list(reversed(residues)) if reverse else residues
+
+    def load_reference_bases(self):
+        """Load canonical reference bases for optional reference fitting."""
+        bases = ['C', 'G', 'T', 'A']
+        return {base: md.load_hdf5(get_data_file_path(f'./atomic/bases/BDNA_{base}.h5')) for base in bases}
+
+    def _prepare_reference_fit_data(self):
+        """Prepare canonical base atom coordinates and frames for optional fitting."""
+        reference_fit_data = {}
+        for base, base_traj in self.load_reference_bases().items():
+            ref_base = ReferenceBase(base_traj)
+            atom_coords = {
+                atom.name: base_traj.xyz[0, atom.index, :]
+                for atom in base_traj.topology.atoms
+                if atom.element.symbol != 'H'
+            }
+            reference_fit_data[base] = {
+                'atom_coords': atom_coords,
+                'frame': np.array([ref_base.b_R[0], ref_base.b_L[0], ref_base.b_D[0], ref_base.b_N[0]])
+            }
+        return reference_fit_data
+
+    def _get_fitted_base_vectors(self, res, ref_base, default_vectors):
+        """Fit residue atoms to canonical reference and transform canonical frame."""
+        reference_key = self.reference_base_map.get(ref_base.base_type, ref_base.base_type)
+        reference_data = self.reference_fit_data.get(reference_key)
+        if reference_data is None:
+            return default_vectors
+
+        residue_atom_indices = {
+            atom.name: atom.index
+            for atom in res.topology.atoms
+            if atom.element.symbol != 'H'
+        }
+
+        candidate_atoms = NUCLEOBASE_DICT.get(ref_base.base_type, [])
+        common_atoms = [
+            atom_name for atom_name in candidate_atoms
+            if atom_name in residue_atom_indices and atom_name in reference_data['atom_coords']
+        ]
+        if len(common_atoms) < 3:
+            return default_vectors
+
+        reference_coords = np.array([reference_data['atom_coords'][atom_name] for atom_name in common_atoms])
+        residue_coords = res.xyz[:, [residue_atom_indices[atom_name] for atom_name in common_atoms], :]
+
+        reference_frame = reference_data['frame']
+        reference_center = reference_coords.mean(axis=0)
+        reference_centered = reference_coords - reference_center
+
+        fitted_vectors = np.empty_like(default_vectors)
+        for frame_index in range(residue_coords.shape[0]):
+            frame_coords = residue_coords[frame_index]
+            frame_center = frame_coords.mean(axis=0)
+            frame_centered = frame_coords - frame_center
+            try:
+                rotation, _ = R.align_vectors(frame_centered, reference_centered)
+            except ValueError:
+                return default_vectors
+
+            fitted_vectors[frame_index, 0] = rotation.apply(reference_frame[0] - reference_center) + frame_center
+            fitted_vectors[frame_index, 1:] = rotation.apply(reference_frame[1:])
+
+        return fitted_vectors
+
+    def get_base_vectors(self, res):
+        """Compute base vectors from a residue-specific reference base."""
+        ref_base = ReferenceBase(res)
+        base_vectors = np.array([ref_base.b_R, ref_base.b_L, ref_base.b_D, ref_base.b_N]).swapaxes(0, 1)
+        if not self.fit_reference:
+            return base_vectors
+        return self._get_fitted_base_vectors(res, ref_base, base_vectors)
+
+    def get_base_reference_frames(self):
+        """Get reference frames for each residue in the strand."""
+        reference_frames = {}
+        for res in self.residues:
+            res_traj = self.traj.atom_slice([at.index for at in res.atoms])
+            reference_frames[res] = self.get_base_vectors(res_traj)
+        return reference_frames
+
+    def reshape_input(self, input_A, input_B, is_step=False):
+        """Reuse the duplex rigid-body reshaping logic for step calculations."""
+        return NucleicFrames.reshape_input(self, input_A, input_B, is_step=is_step)
+
+    def compute_parameters(self, rotation_A, rotation_B, origin_A, origin_B):
+        """Reuse the duplex rigid-body transform math for adjacent base frames."""
+        return NucleicFrames.compute_parameters(self, rotation_A, rotation_B, origin_A, origin_B)
+
+    def calculate_parameters(self, frames_A, frames_B, is_step=False):
+        """Reuse the duplex parameter pipeline for adjacent residue frames."""
+        return NucleicFrames.calculate_parameters(self, frames_A, frames_B, is_step=is_step)
+
+    def analyse_frames(self):
+        """Build per-residue frames and strand-local step parameters."""
+        self.step_parameter_names = ['shift', 'slide', 'rise', 'tilt', 'roll', 'twist']
+        self.base_parameter_names = ['shear', 'stretch', 'stagger', 'buckle', 'propeller', 'opening']
+        self.frames = np.array([self.base_frames[res] for res in self.residues])
+
+        if len(self.residues) > 1:
+            self.step_params = self.calculate_parameters(self.frames[:-1], self.frames[1:], is_step=True)[0]
+        else:
+            self.step_params = np.zeros((self.traj.n_frames, len(self.residues), len(self.step_parameter_names)))
+
+        self.names = self.step_parameter_names
+        self.parameters = self.step_params
+
+    def get_parameters(self, step=False, base=False):
+        if base:
+            raise NotImplementedError(
+                "Base-pair parameters require paired strands. "
+                "Single-stranded nucleic acids expose strand-local step parameters only."
+            )
+        return self.step_params, self.step_parameter_names
+
+    def get_parameter(self, name='twist'):
+        if name in self.base_parameter_names:
+            raise NotImplementedError(
+                "Base-pair parameters require paired strands. "
+                "Single-stranded nucleic acids expose strand-local step parameters only."
+            )
+        if name not in self.step_parameter_names:
+            raise ValueError(f"Parameter {name} not found.")
+        return self.step_params[:, :, self.step_parameter_names.index(name)]
+
 class NucleicFrames:
     """Class to compute the rigid base parameters of a DNA structure.
     
@@ -1101,4 +1247,3 @@ class NucleicFrames:
 #     #     # add empty column of zeros to the step parameters
 #     #     extra_column = np.zeros((step_parameters.shape[0], 1, 6))
 #     #     self.step_parameters = np.concatenate((extra_column,step_parameters), axis=1)
-

@@ -596,6 +596,45 @@ def get_sequence_letters(traj, leading_chain=0):
     return sequence
     
 
+def detect_nucleic_topology(traj):
+    """Classify the nucleic-acid topology of a trajectory by chain count.
+    """
+    chain_ids = []
+    residues_per_chain = {}
+
+    for chain_index, chain in enumerate(traj.top.chains):
+        nucleic_residues = []
+        for residue in chain.residues:
+            residue_indices = [atom.index for atom in residue.atoms]
+            if not residue_indices:
+                continue
+            try:
+                get_base_type(traj.atom_slice(residue_indices))
+            except ValueError:
+                continue
+            nucleic_residues.append(residue)
+
+        if nucleic_residues:
+            chain_ids.append(chain_index)
+            residues_per_chain[chain_index] = len(nucleic_residues)
+
+    if len(chain_ids) == 1:
+        strand_mode = 'single'
+    elif len(chain_ids) == 2:
+        strand_mode = 'double'
+    elif len(chain_ids) == 0:
+        strand_mode = 'none'
+    else:
+        strand_mode = 'multi'
+
+    return {
+        'chainids': chain_ids,
+        'n_nucleic_chains': len(chain_ids),
+        'residues_per_chain': residues_per_chain,
+        'strand_mode': strand_mode,
+    }
+
+
 def _check_input(sequence: Union[str, List[str]] = None, n_bp: int = None):
     """Check the input sequence and number of base pairs, returning a string sequence and an integer n_bp."""
 
