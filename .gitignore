@@ -11,6 +11,7 @@ examples/data/filament_dataset/
 examples/data/filament_dataset*.zip
 examples/data/filament_dataset*.tar
 examples/data/filament_dataset*.tar.gz
+Data/PMCpy
 
 docs/notebooks/data/filament_dataset/
 docs/notebooks/data/filament_dataset*.zip
