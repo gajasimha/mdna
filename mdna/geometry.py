@@ -201,84 +201,24 @@ class SingleStrandFrames:
         self.analyse_frames()
 
     def get_residues(self, chain_index, reverse=False):
-        """Get residues from a specified chain."""
-        if chain_index >= len(self.top._chains):
-            raise IndexError("Chain index out of range.")
-        chain = self.top._chains[chain_index]
-        residues = chain._residues
-        return list(reversed(residues)) if reverse else residues
+        """Get residues from a specified chain. Same as in NucleicFrames."""
+        return NucleicFrames.get_residues(self, chain_index, reverse=reverse)
 
     def load_reference_bases(self):
-        """Load canonical reference bases for optional reference fitting."""
-        bases = ['C', 'G', 'T', 'A']
-        return {base: md.load_hdf5(get_data_file_path(f'./atomic/bases/BDNA_{base}.h5')) for base in bases}
+        """Load canonical reference bases for optional reference fitting. Same as in NucleicFrames."""
+        return NucleicFrames.load_reference_bases(self)
 
     def _prepare_reference_fit_data(self):
-        """Prepare canonical base atom coordinates and frames for optional fitting."""
-        reference_fit_data = {}
-        for base, base_traj in self.load_reference_bases().items():
-            ref_base = ReferenceBase(base_traj)
-            atom_coords = {
-                atom.name: base_traj.xyz[0, atom.index, :]
-                for atom in base_traj.topology.atoms
-                if atom.element.symbol != 'H'
-            }
-            reference_fit_data[base] = {
-                'atom_coords': atom_coords,
-                'frame': np.array([ref_base.b_R[0], ref_base.b_L[0], ref_base.b_D[0], ref_base.b_N[0]])
-            }
-        return reference_fit_data
+        """Prepare canonical base atom coordinates and frames for optional fitting. Same as in NucleicFrames."""
+        return NucleicFrames._prepare_reference_fit_data(self)
 
     def _get_fitted_base_vectors(self, res, ref_base, default_vectors):
-        """Fit residue atoms to canonical reference and transform canonical frame."""
-        reference_key = self.reference_base_map.get(ref_base.base_type, ref_base.base_type)
-        reference_data = self.reference_fit_data.get(reference_key)
-        if reference_data is None:
-            return default_vectors
-
-        residue_atom_indices = {
-            atom.name: atom.index
-            for atom in res.topology.atoms
-            if atom.element.symbol != 'H'
-        }
-
-        candidate_atoms = NUCLEOBASE_DICT.get(ref_base.base_type, [])
-        common_atoms = [
-            atom_name for atom_name in candidate_atoms
-            if atom_name in residue_atom_indices and atom_name in reference_data['atom_coords']
-        ]
-        if len(common_atoms) < 3:
-            return default_vectors
-
-        reference_coords = np.array([reference_data['atom_coords'][atom_name] for atom_name in common_atoms])
-        residue_coords = res.xyz[:, [residue_atom_indices[atom_name] for atom_name in common_atoms], :]
-
-        reference_frame = reference_data['frame']
-        reference_center = reference_coords.mean(axis=0)
-        reference_centered = reference_coords - reference_center
-
-        fitted_vectors = np.empty_like(default_vectors)
-        for frame_index in range(residue_coords.shape[0]):
-            frame_coords = residue_coords[frame_index]
-            frame_center = frame_coords.mean(axis=0)
-            frame_centered = frame_coords - frame_center
-            try:
-                rotation, _ = R.align_vectors(frame_centered, reference_centered)
-            except ValueError:
-                return default_vectors
-
-            fitted_vectors[frame_index, 0] = rotation.apply(reference_frame[0] - reference_center) + frame_center
-            fitted_vectors[frame_index, 1:] = rotation.apply(reference_frame[1:])
-
-        return fitted_vectors
+        """Fit residue atoms to canonical reference and transform canonical frame. Same as in NucleicFrames."""
+        return NucleicFrames._get_fitted_base_vectors(self, res, ref_base, default_vectors)
 
     def get_base_vectors(self, res):
         """Compute base vectors from a residue-specific reference base."""
-        ref_base = ReferenceBase(res)
-        base_vectors = np.array([ref_base.b_R, ref_base.b_L, ref_base.b_D, ref_base.b_N]).swapaxes(0, 1)
-        if not self.fit_reference:
-            return base_vectors
-        return self._get_fitted_base_vectors(res, ref_base, base_vectors)
+        return NucleicFrames.get_base_vectors(self, res)
 
     def get_base_reference_frames(self):
         """Get reference frames for each residue in the strand."""

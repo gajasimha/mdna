@@ -48,7 +48,7 @@ def load(traj=None, frames=None, sequence=None, chainids=[0,1], circular=None, f
     elif filename is not None and top is not None:
         traj = md.load(filename_or_filenames=filename, top=top, stride=stride)
 
-    return Nucleic(sequence=sequence, n_bp=None, traj=traj, frames=frames, chainids=chainids, circular=None)
+    return Nucleic(sequence=sequence, n_bp=None, traj=traj, frames=frames, chainids=chainids, circular=circular)
 
 def make(sequence: str = None, control_points: np.ndarray = None, circular : bool = False, closed: bool = False, n_bp : int = None, dLk : int = None, bp_per_turn : int = 10.5):
     """Generate a DNA structure from a given DNA sequence and control points.
