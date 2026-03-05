@@ -964,8 +964,6 @@ class Nucleic:
         self.traj[frame].save(f'{filename}.pdb')
 
 
-
-
 class Extender:
     """Extend the DNA sequence in the specified direction using the five_end or three_end as reference."""
 
@@ -1033,7 +1031,6 @@ class Extender:
 
     def interplotate_points(self,start, end, n):
         return np.array([start + (end-start)*i/n for i in range(n+1)])
-
 
 
 class Connector:
