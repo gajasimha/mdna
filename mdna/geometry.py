@@ -528,6 +528,27 @@ class NucleicFrames:
         return fig, ax 
 
 class SingleStrandFrames(NucleicFrames):
+    """
+    Inherits from NucleicFrames:
+    Object inits:
+    - self.traj = traj
+    - self.top = traj.topology
+    - self.fit_reference = fit_reference
+    - self.reference_base_map = {"U": "T"}
+    - self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
+
+    Functions:
+    - get_residues
+    - load_reference_bases
+    - _prepare_reference_fit_data
+    - reshape_input
+    - _get_fitted_base_vectors
+    - get_base_vectors
+    - compute_parameters
+    - calculate_parameters
+    """
+    
+    
     def __init__(self, traj, chainid=0, fit_reference=False):
         self._init_common(traj, fit_reference=fit_reference) 
 
@@ -538,23 +559,7 @@ class SingleStrandFrames(NucleicFrames):
         self.base_frames = self.get_base_reference_frames()
         self.analyse_frames()
 
-    # Inherits from NucleicFrames:
-    # Functions:
-    # - get_residues
-    # - load_reference_bases
-    # - _prepare_reference_fit_data
-    # - _get_fitted_base_vectors
-    # - get_base_vectors
-    # - reshape_input
-    # - compute_parameters
-    # - calculate_parameters
-    # 
-    # object inits:
-    # - self.traj = traj
-    # - self.top = traj.topology
-    # - self.fit_reference = fit_reference
-    # - self.reference_base_map = {"U": "T"}
-    # - self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
+
 
     def get_base_reference_frames(self):
         """Get reference frames for each residue in the strand."""
