@@ -333,7 +333,6 @@ class NucleicFrames:
 
         return rotation_A, rotation_B, origin_A, origin_B, original_shape
 
-
     def compute_parameters(self, rotation_A, rotation_B, origin_A, origin_B):
         """Calculate the parameters between each base pair and mean reference frames.
 
@@ -378,7 +377,6 @@ class NucleicFrames:
 
         # Return the parameters and the mean reference frame
         return rigid_parameters, trans_mid, rotation_mid
-
 
     def calculate_parameters(self,frames_A, frames_B, is_step=False):
         """Calculate the parameters between each base pair and mean reference frames.
@@ -428,7 +426,6 @@ class NucleicFrames:
 
         # Return the parameters and the mean reference frames
         return  params, mean_reference_frames if not is_step else params
-
 
     def analyse_frames(self):
         """Analyze the trajectory and compute parameters."""
@@ -562,7 +559,9 @@ class SingleStrandFrames(NucleicFrames):
     def get_base_reference_frames(self):
         """Get reference frames for each residue in the strand."""
         reference_frames = {}
-        for res in self.residues: # in NucleicFrames loop over implied double strand : for res in self.res_A + self.res_B:
+        # function parents class NucleicFrames loops over implied double strand
+        # here over only one strand! instead of: for res in self.res_A + self.res_B:
+        for res in self.residues:
             res_traj = self.traj.atom_slice([at.index for at in res.atoms])
             reference_frames[res] = self.get_base_vectors(res_traj)
         return reference_frames 
@@ -570,15 +569,18 @@ class SingleStrandFrames(NucleicFrames):
     def analyse_frames(self):
         """Build per-residue frames and strand-local step parameters."""
         self.step_parameter_names = ["shift", "slide", "rise", "tilt", "roll", "twist"]
-        self.base_parameter_names = ["shear", "stretch", "stagger", "buckle", "propeller", "opening"]
 
-        self.frames = np.array([self.base_frames[res] for res in self.residues])
+        # not necessary to be defined, but required for interface to work properly
+        self.base_parameter_names = ["shear", "stretch", "stagger", "buckle", "propeller", "opening"] 
+
+        # Get base reference frames for each residue
+        self.frames = np.array([self.base_frames[res] for res in self.residues]) 
 
         if len(self.residues) > 1:
-            self.step_params = self.calculate_parameters(
+            self.step_params = self.calculate_parameters( # compute step parameters if there is multiple residues
                 self.frames[:-1], self.frames[1:], is_step=True
             )[0]
-        else:
+        else: # if only one residue step parameters become zeroed
             self.step_params = np.zeros(
                 (self.traj.n_frames, len(self.residues), len(self.step_parameter_names))
             )
@@ -587,6 +589,7 @@ class SingleStrandFrames(NucleicFrames):
         self.parameters = self.step_params
 
     def get_parameters(self, step=False, base=False):
+        """Catches base-pair parameter request to raise NotImplementedError"""
         if base:
             raise NotImplementedError(
                 "Base-pair parameters require paired strands. "
@@ -595,6 +598,7 @@ class SingleStrandFrames(NucleicFrames):
         return self.step_params, self.step_parameter_names
 
     def get_parameter(self, name="twist"):
+                """Catches base-pair parameter request to raise NotImplementedError"""
         if name in self.base_parameter_names:
             raise NotImplementedError(
                 "Base-pair parameters require paired strands. "
