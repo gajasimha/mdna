@@ -291,7 +291,7 @@ class NucleicFrames:
         for res in self.res_A + self.res_B:
             res_traj = self.traj.atom_slice([at.index for at in res.atoms])
             base_vectors = self.get_base_vectors(res_traj)
-            reference_frames[res] = base_vectors # Store the base vectors for the residue index (with shape (4, n_frames, 3))
+            reference_frames[res] = base_vectors # Store the base vectors for the residue index (with shape (n_frames, 4, 3))
         return reference_frames
 
     def reshape_input(self,input_A,input_B,is_step=False):
@@ -532,7 +532,7 @@ class NucleicFrames:
 
 class SingleStrandFrames(NucleicFrames):
     def __init__(self, traj, chainid=0, fit_reference=False):
-        self._init_common(traj, fit_reference=fit_reference)
+        self._init_common(traj, fit_reference=fit_reference) 
 
         self.chainids = [chainid]
         self.chainid = chainid
@@ -541,7 +541,8 @@ class SingleStrandFrames(NucleicFrames):
         self.base_frames = self.get_base_reference_frames()
         self.analyse_frames()
 
-    # All of these are inherited from NucleicFrames:
+    # Inherits from NucleicFrames:
+    # Functions:
     # - get_residues
     # - load_reference_bases
     # - _prepare_reference_fit_data
@@ -550,14 +551,21 @@ class SingleStrandFrames(NucleicFrames):
     # - reshape_input
     # - compute_parameters
     # - calculate_parameters
+    # 
+    # object inits:
+    # - self.traj = traj
+    # - self.top = traj.topology
+    # - self.fit_reference = fit_reference
+    # - self.reference_base_map = {"U": "T"}
+    # - self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
 
     def get_base_reference_frames(self):
         """Get reference frames for each residue in the strand."""
         reference_frames = {}
-        for res in self.residues:
+        for res in self.residues: # in NucleicFrames loop over implied double strand : for res in self.res_A + self.res_B:
             res_traj = self.traj.atom_slice([at.index for at in res.atoms])
             reference_frames[res] = self.get_base_vectors(res_traj)
-        return reference_frames
+        return reference_frames 
 
     def analyse_frames(self):
         """Build per-residue frames and strand-local step parameters."""
