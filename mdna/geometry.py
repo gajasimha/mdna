@@ -548,7 +548,6 @@ class SingleStrandFrames(NucleicFrames):
     - calculate_parameters
     """
     
-    
     def __init__(self, traj, chainid=0, fit_reference=False):
         self._init_common(traj, fit_reference=fit_reference) 
 
@@ -558,8 +557,6 @@ class SingleStrandFrames(NucleicFrames):
 
         self.base_frames = self.get_base_reference_frames()
         self.analyse_frames()
-
-
 
     def get_base_reference_frames(self):
         """Get reference frames for each residue in the strand."""
