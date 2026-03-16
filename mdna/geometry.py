@@ -38,8 +38,7 @@ class ReferenceBase:
         # Get coordinates of key atoms based on base type
         self.C1_coords, self.N_coords, self.C_coords = self.get_coordinates()
         # Calculate base reference point and base vectors
-        self.b_R, self.b_L, self.b_D, self.b_N = self.calculate_base_frame()
-        # self.basis = np.array([self.b_D.T, self.b_L.T, self.b_N])
+        self.b_R, self.b_D, self.b_L, self.b_N = self.calculate_base_frame()
     
     def _select_atom_by_name(self, name: str) -> np.ndarray:
         """_summary_
@@ -130,7 +129,6 @@ class ReferenceBase:
         b_D = np.cross(b_L, b_N, axis=1)
         
         return np.array([b_R, b_D, b_L, b_N])
-        #return np.array([b_R, -b_D, -b_L, -b_N])
 
     def plot_baseframe(self,atoms=True, frame=True, ax=None,length=1):
         """_summary_
@@ -600,7 +598,7 @@ class SingleStrandFrames(NucleicFrames):
         return self.step_params, self.step_parameter_names
 
     def get_parameter(self, name="twist"):
-                """Catches base-pair parameter request to raise NotImplementedError"""
+        """Catches base-pair parameter request to raise NotImplementedError"""
         if name in self.base_parameter_names:
             raise NotImplementedError(
                 "Base-pair parameters require paired strands. "
