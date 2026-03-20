@@ -38,7 +38,7 @@ class ReferenceBase:
         # Get coordinates of key atoms based on base type
         self.C1_coords, self.N_coords, self.C_coords = self.get_coordinates()
         # Calculate base reference point and base vectors
-        self.b_R, self.b_D, self.b_L, self.b_N = self.calculate_base_frame()
+        self.b_R, self.b_L, self.b_D, self.b_N = self.calculate_base_frame()
     
     def _select_atom_by_name(self, name: str) -> np.ndarray:
         """_summary_
@@ -527,23 +527,31 @@ class NucleicFrames:
 
 class SingleStrandFrames(NucleicFrames):
     """
-    Inherits from NucleicFrames:
-    Object inits:
-    - self.traj = traj
-    - self.top = traj.topology
-    - self.fit_reference = fit_reference
-    - self.reference_base_map = {"U": "T"}
-    - self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
+    Single-stranded nucleic-acid frames.
 
-    Functions:
-    - get_residues
-    - load_reference_bases
-    - _prepare_reference_fit_data
-    - reshape_input
-    - _get_fitted_base_vectors
-    - get_base_vectors
-    - compute_parameters
-    - calculate_parameters
+    Residue-local frame convention:
+        origin = parent-class base reference point
+        bL     = projected C1'-C1' tangent in the base plane
+        bN     = base-plane normal, sign-fixed by continuity along the strand
+        bD     = bL x bN
+
+    Inherits from NucleicFrames:
+        Object inits:
+            self.traj = traj
+            self.top = traj.topology
+            self.fit_reference = fit_reference
+            self.reference_base_map = {"U": "T"}
+            self.reference_fit_data = self._prepare_reference_fit_data() if self.fit_reference else {}
+
+        Functions:
+            get_residues
+            load_reference_bases
+            _prepare_reference_fit_data
+            reshape_input
+            _get_fitted_base_vectors
+            get_base_vectors
+            compute_parameters
+            calculate_parameters
     """
     
     def __init__(self, traj, chainid=0, fit_reference=False):
@@ -564,7 +572,7 @@ class SingleStrandFrames(NucleicFrames):
         for res in self.residues:
             res_traj = self.traj.atom_slice([at.index for at in res.atoms])
             reference_frames[res] = self.get_base_vectors(res_traj)
-        return reference_frames 
+        return reference_frames
 
     def analyse_frames(self):
         """Build per-residue frames and strand-local step parameters."""
